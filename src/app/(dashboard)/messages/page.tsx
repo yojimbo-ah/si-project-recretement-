@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useChatRealtime } from '@/hooks/useChatRealtime'
 import { Send, Search, MessageSquare } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Notifications from '@/components/Notifications'
@@ -14,10 +15,13 @@ export default function MessagesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [conversations, setConversations] = useState<any[]>([])
   const [selectedContact, setSelectedContact] = useState<any>(null)
-  const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const { messages, status: realtimeStatus, error: realtimeError } = useChatRealtime({
+    currentUserId: currentUser?.id,
+    otherUserId: selectedContact?.id
+  })
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -66,76 +70,12 @@ export default function MessagesPage() {
     initMessages()
   }, [directMessageId])
 
-  // 2. Ecoute globale des nouveaux messages en temps réel
-  useEffect(() => {
-    if (!currentUser) return
-
-    const channel = supabase
-      .channel(`chat-room-${selectedContact?.id ?? 'global'}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'messages' }, 
-        (payload) => {
-          const newMsg = payload.new as any
-          
-          if (selectedContact && (
-            (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedContact.id) ||
-            (newMsg.sender_id === selectedContact.id && newMsg.receiver_id === currentUser.id)
-          )) {
-            setMessages(prev => {
-              if (prev.find(m => m.id === newMsg.id)) return prev
-              return [...prev, newMsg]
-            })
-          }
-
-          if (newMsg.receiver_id === currentUser.id) {
-            setConversations(prev => {
-              if (prev.find(c => c.id === newMsg.sender_id)) return prev
-              supabase.from('profiles').select('*').eq('id', newMsg.sender_id).single()
-                .then(({ data }) => {
-                  if (data) setConversations(p => [data, ...p])
-                })
-              return prev
-            })
-          }
-        }
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [selectedContact, currentUser]) // On garde 2 éléments fixes ici
-
-  // 3. Recharger le chat quand on change de contact
-  useEffect(() => {
-    if (!selectedContact || !currentUser) return
-
-    async function loadChat() {
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedContact.id}),and(sender_id.eq.${selectedContact.id},receiver_id.eq.${currentUser.id})`)
-        .order('created_at', { ascending: true })
-      
-      setMessages(data || [])
-    }
-    loadChat()
-  }, [selectedContact, currentUser])
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || !selectedContact || !currentUser) return
 
     const msgContent = newMessage
     setNewMessage('')
-
-    const tempId = Date.now()
-    const tempMsg = {
-      id: tempId,
-      sender_id: currentUser.id,
-      receiver_id: selectedContact.id,
-      content: msgContent,
-      created_at: new Date().toISOString()
-    }
-    setMessages(prev => [...prev, tempMsg])
 
     await supabase.from('messages').insert({
       sender_id: currentUser.id,
@@ -159,8 +99,8 @@ export default function MessagesPage() {
         <div className="card" style={{ width: '280px', display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '15px', borderBottom: '1px solid var(--border2)' }}>
             <div style={{ position: 'relative' }}>
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--hint)]" />
-              <input className="w-full bg-[var(--surface2)] border-none rounded-lg py-2 pr-3 pl-[30px] text-[11px] outline-none" placeholder="Search conversations..." />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-(--hint)" />
+              <input className="w-full bg-(--surface2) border-none rounded-lg py-2 pr-3 pl-7.5 text-[11px] outline-none" placeholder="Search conversations..." />
             </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -209,7 +149,12 @@ export default function MessagesPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600 }}>{selectedContact.first_name} {selectedContact.last_name}</div>
-                  <div style={{ fontSize: '10px', color: '#16a34a' }}>● Online</div>
+                  <div style={{ fontSize: '10px', color: realtimeStatus === 'connected' ? '#16a34a' : 'var(--muted)' }}>
+                    ● {realtimeStatus === 'connected' ? 'Live' : 'Connecting'}
+                  </div>
+                  {realtimeError && (
+                    <div style={{ fontSize: '10px', color: '#ef4444' }}>{realtimeError}</div>
+                  )}
                 </div>
               </div>
               
