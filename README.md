@@ -1,36 +1,50 @@
-# Talent-DZ : Extranet de Recrutement Cloud
+# 🚀 Talent-DZ : Plateforme Extranet de Recrutement
 
-## Mission 4 : Architecture Cloud (README "Architecte")
-
-Bienvenue sur le projet **Talent-DZ**, notre extranet de recrutement développé avec une approche 100% Cloud et Serverless en utilisant Next.js, Supabase et Vercel.
-
-### 1. CAPEX vs OPEX : Le modèle économique du Serverless
-Dans un projet informatique classique, la mise en place de serveurs physiques nécessite un **CAPEX** (Capital Expenditure - Dépenses d'investissement) important : achat de serveurs, racks, climatisation, licences réseau.
-Avec notre architecture Vercel/Supabase, notre **CAPEX est de 0 €**. Nous avons opté pour un modèle **OPEX** (Operational Expenditure - Dépenses opérationnelles) de type "Pay-As-You-Go". Nous ne payons que pour les requêtes réellement effectuées, le temps de calcul utilisé (Serverless Functions sur Vercel) et le stockage consommé (Supabase). Cela permet de démarrer le projet sans budget initial et de maîtriser les coûts tout au long du cycle de vie de l'application.
-
-### 2. Scalabilité automatisée
-Contrairement à une infrastructure "On-Premise" (serveur local) où la montée en charge nécessite l'ajout manuel de RAM ou de nouveaux serveurs (processus lent et coûteux), notre architecture Serverless offre une **scalabilité horizontale et verticale transparente**.
-*   **Frontend (Vercel)** : Le contenu statique est distribué mondialement via le réseau Edge. Lors de pics d'utilisation (par exemple, si 10 000 candidats postulent le même jour), les fonctions serverless de Next.js s'instancient automatiquement pour absorber la charge.
-*   **Backend (Supabase)** : Construit au-dessus de PostgreSQL, il permet une évolution fluide des capacités de traitement et de stockage. Si la charge diminue, les ressources s'ajustent pour ne pas payer pour des capacités inutilisées.
-
-### 3. Gestion des Données : Structurées et Non-structurées
-Pour répondre aux besoins d'une plateforme de recrutement, nous gérons deux types de données :
-*   **Données Structurées** : Stockées dans la base de données relationnelle **PostgreSQL (Supabase)**. Elles sont facilement requêtables et organisées en tables claires (`profiles` pour les utilisateurs, `job_offers` pour les offres, et `applications` pour lier les candidats aux offres).
-*   **Données Non-structurées** : Les fichiers PDF représentant les CV des candidats. Ces données lourdes et non formatables en tables sont stockées dans **Supabase Storage** (un bucket nommé `cv_bucket`). Les URL générées sont ensuite sauvegardées dans la table `applications` pour un référencement facile.
-
-### 4. Sécurité (RLS) - Mission 1
-L'intégrité de notre plateforme repose sur les politiques **RLS (Row Level Security)** de Supabase. Chaque candidat s'authentifie via `Supabase Auth`, et les règles PostgreSQL garantissent de manière stricte au niveau de la base qu'**un candidat ne peut voir et gérer que ses propres candidatures et son propre CV**.
+Ce projet a été réalisé dans le cadre du module **"Build & Ship" - Architecture Cloud & Vibe Programming**. Il s'agit d'une plateforme de recrutement moderne permettant aux talents algériens de postuler à des offres d'emploi et de suivre leurs candidatures en temps réel.
 
 ---
 
-### Instructions pour lancer le projet
+## 🎲 Mapping du Thème : Recrutement
+Conformément aux exigences de la "Roulette des Thèmes", notre application **Talent-DZ** s'articule autour de la structure suivante :
 
-1. Clonez ce dépôt.
-2. Installez les dépendances : `npm install`
-3. Copiez `.env.example` vers `.env.local` et remplissez vos identifiants Supabase.
-4. Démarrez le serveur de développement : `npm run dev`
+*   **Table A (Utilisateurs) : `profiles`**
+    *   Représente les candidats. Gérée via Supabase Auth.
+*   **Table B (Ressources) : `job_offers`**
+    *   Représente les offres d'emploi disponibles (Poste, Entreprise, Salaire, Lieu).
+*   **Table C (Interactions) : `applications`**
+    *   Table de jointure reliant un Candidat (A) à une Offre (B) avec une date et un statut évolutif (*Applied, In Review, Interview, Offer*).
+*   **Storage (Fichiers) : `cv_bucket`**
+    *   Stockage des fichiers PDF (Curriculum Vitae) liés à chaque candidature.
 
-### Contributeurs
-* Binôme 1
-* Binôme 2
-*(Assurez-vous de faire des commits réguliers avec les comptes GitHub de chaque membre !)*
+---
+
+## 🏗️ Analyse d'Architecture Cloud (Rapport Architecte)
+
+### 1. Pourquoi Vercel + Supabase au lieu d'un serveur classique ? (CAPEX vs OPEX)
+L'utilisation de la stack **Vercel + Supabase** est économiquement plus logique pour lancer ce projet grâce au passage d'un modèle **CAPEX** à un modèle **OPEX**. 
+*   Dans un modèle classique (**CAPEX**), nous aurions dû investir lourdement au départ dans l'achat de serveurs physiques, de systèmes de refroidissement et de bande passante, sans savoir si le projet allait réussir. 
+*   Avec l'architecture Cloud/Serverless (**OPEX**), nous n'avons aucun coût d'entrée. Nous payons uniquement pour ce que nous consommons (Pay-as-you-go). Cela permet de réduire les risques financiers et de concentrer nos ressources sur le développement du produit plutôt que sur la maintenance du matériel.
+
+### 2. Gestion de la scalabilité : Vercel vs Data Center physique
+Contrairement à un Data Center physique local où la scalabilité est limitée par le nombre de "racks" disponibles et nécessite une intervention humaine pour ajouter des serveurs, **Vercel** gère la scalabilité de manière **élastique**. 
+Grâce à son architecture de **Edge Network**, Vercel déploie notre application sur des centaines de points de présence à travers le monde. Si le trafic sur Talent-DZ explose soudainement, Vercel alloue automatiquement plus de ressources sans que nous ayons à nous soucier de la climatisation ou de la puissance électrique des serveurs. C'est une scalabilité horizontale et transparente.
+
+### 3. Données Structurées vs Non-structurées
+Dans notre application, nous gérons deux types de données :
+*   **Données Structurées** : Ce sont les informations organisées en lignes et colonnes dans notre base de données PostgreSQL (Supabase). Les profils, les offres d'emploi et les dates de candidatures sont des données structurées car elles suivent un schéma SQL strict.
+*   **Données Non-structurées** : Ce sont les fichiers **CV au format PDF**. Contrairement au texte d'une base de données, ces fichiers n'ont pas de format interne prévisible pour le moteur SQL. Ils sont donc stockés sous forme de "Blobs" dans le **Supabase Storage**, une solution optimisée pour les fichiers volumineux.
+
+---
+
+## 🛠️ Stack Technologique
+*   **Frontend** : Next.js 15 (App Router)
+*   **Styling** : Vanilla CSS (Modern Premium UI)
+*   **BaaS (Backend as a Service)** : Supabase
+*   **Hosting/Deployment** : Vercel
+*   **Realtime** : PostgreSQL CDC (Change Data Capture) pour les notifications et les messages.
+
+---
+
+## 🔑 Identifiants de Test (Pour correction)
+*   **Email** : `test@example.com`
+*   **Mot de passe** : `password123`

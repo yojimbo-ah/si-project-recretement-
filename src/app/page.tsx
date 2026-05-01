@@ -1,65 +1,119 @@
-import Image from "next/image";
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
-export default function Home() {
+export default function AuthPage() {
+  const [isLogin, setIsLogin] = useState(true)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (!error) router.push('/dashboard')
+      else alert(error.message)
+    } else {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          }
+        }
+      })
+      if (!error) {
+        alert('Account created! Please check your email.')
+        setIsLogin(true)
+      } else {
+        alert(error.message)
+      }
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div style={{ padding: '1rem 0', display: 'flex', justifyContent: 'center', minHeight: '100vh', alignItems: 'center' }}>
+      <div className="auth-screen">
+        <div className="auth-left">
+          <div className="auth-brand">Talent<span>-DZ</span></div>
+          <div className="auth-headline">Find your next opportunity in Algeria</div>
+          <p className="auth-desc">Connect with top employers, apply in seconds, and track every step of your journey.</p>
+          <div className="feat-list">
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="10" rx="1.5"/><path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1"/></svg>
+              </div>
+              <div className="feat-text"><strong>Hundreds of verified offers</strong>Browse full-time, remote & hybrid roles across Algeria</div>
+            </div>
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><path d="M2 13l4-4 3 3 5-6"/></svg>
+              </div>
+              <div className="feat-text"><strong>One-click applications</strong>Upload your CV once and apply to any job instantly</div>
+            </div>
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+              </div>
+              <div className="feat-text"><strong>Real-time tracking</strong>See your application status update live, from review to offer</div>
+            </div>
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><path d="M8 2l2 4 4.5.7-3.3 3.2.8 4.5L8 12.3 4 14.4l.8-4.5L1.5 6.7 6 6z"/></svg>
+              </div>
+              <div className="feat-text"><strong>Smart matching</strong>Get recommended roles that fit your skills automatically</div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="auth-right">
+          <div className="auth-form-box">
+            <div className="auth-tab-row">
+              <div className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => setIsLogin(true)}>Sign in</div>
+              <div className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => setIsLogin(false)}>Create account</div>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="auth-form-title">{isLogin ? 'Welcome back' : 'Create your account'}</div>
+              <div className="auth-form-sub">{isLogin ? 'Sign in to continue your job search' : 'Start your job search — it\'s completely free'}</div>
+              
+              {!isLogin && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                  <div>
+                    <label className="form-label">First name</label>
+                    <input required className="form-input" placeholder="Amine" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="form-label">Last name</label>
+                    <input required className="form-input" placeholder="Meziani" value={lastName} onChange={e => setLastName(e.target.value)} />
+                  </div>
+                </div>
+              )}
+              
+              <div className="input-group">
+                <label className="form-label">Email</label>
+                <input required className="form-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+              </div>
+              
+              <div className="input-group">
+                <label className="form-label">Password</label>
+                <input required className="form-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                {isLogin && <div className="forgot">Forgot password?</div>}
+              </div>
+
+              <button type="submit" className="btn-full btn-red" style={{ marginTop: '4px' }}>
+                {isLogin ? 'Sign in' : 'Create free account'}
+              </button>
+            </form>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
-  );
+  )
 }

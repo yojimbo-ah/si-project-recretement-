@@ -1,41 +1,116 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { TrendingUp, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+
 export default function Dashboard() {
+  const supabase = createClient()
+  const [stats, setStats] = useState({
+    total: 0,
+    inReview: 0,
+    interview: 0,
+    offer: 0
+  })
+  const [userName, setUserName] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase.from('profiles').select('first_name').eq('id', user.id).single()
+      if (profile) setUserName(profile.first_name)
+
+      const { data: apps } = await supabase
+        .from('applications')
+        .select('status')
+        .eq('user_id', user.id)
+
+      if (apps) {
+        setStats({
+          total: apps.length,
+          inReview: apps.filter(a => a.status?.toLowerCase() === 'in review').length,
+          interview: apps.filter(a => a.status?.toLowerCase() === 'interview').length,
+          offer: apps.filter(a => a.status?.toLowerCase() === 'offer').length
+        })
+      }
+      setLoading(false)
+    }
+    fetchData()
+  }, [])
+
+  if (loading) return <div className="p-8">Loading...</div>
+
+  const statCards = [
+    { label: 'Applications', value: stats.total, dotColor: '#635bff', changeText: 'Total submitted' },
+    { label: 'In Review', value: stats.inReview, dotColor: '#f59e0b', changeText: 'Active now' },
+    { label: 'Interviews', value: stats.interview, dotColor: '#16a34a', changeText: 'Next steps' },
+    { label: 'Offers', value: stats.offer, dotColor: '#3b82f6', changeText: 'Received' },
+  ]
+
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">Good morning, Amine</div>
+          <div className="page-title">Good morning, {userName || 'Talent'}</div>
           <div className="page-sub">Here's your job search overview for today</div>
         </div>
-        <div className="topbar-actions">
-          <button className="btn-ghost">Notifications<span className="notif-badge">3</span></button>
-          <button className="btn-primary">+ New application</button>
-        </div>
       </div>
+
       <div className="content">
-        <div className="stats-row">
-          <div className="stat-card"><div className="stat-label">Applications</div><div className="stat-num">12</div><div className="stat-change"><span className="stat-dot" style={{background:'#635bff'}}></span><span className="text-[#1a7f5a]">+3 this week</span></div></div>
-          <div className="stat-card"><div className="stat-label">In review</div><div className="stat-num">5</div><div className="stat-change"><span className="stat-dot" style={{background:'#f59e0b'}}></span>Active now</div></div>
-          <div className="stat-card"><div className="stat-label">Interviews</div><div className="stat-num">2</div><div className="stat-change"><span className="stat-dot" style={{background:'#16a34a'}}></span><span className="text-[#1a7f5a]">Next: Tue</span></div></div>
-          <div className="stat-card"><div className="stat-label">Profile views</div><div className="stat-num">87</div><div className="stat-change"><span className="stat-dot" style={{background:'#3b82f6'}}></span><span className="text-[#1a7f5a]">+24% this week</span></div></div>
+        {/* STATS ROW (FROM DESIGN.HTML) */}
+        <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '18px' }}>
+          {statCards.map((card) => (
+            <div key={card.label} className="stat-card" style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+              <div className="stat-label" style={{ fontSize: '10px', color: 'var(--hint)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '6px' }}>
+                {card.label}
+              </div>
+              <div className="stat-num" style={{ fontSize: '24px', fontWeight: 500, color: 'var(--text)', fontFamily: "'Syne', sans-serif", lineHeight: 1 }}>
+                {card.value}
+              </div>
+              <div className="stat-change" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span className="stat-dot" style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: card.dotColor }}></span>
+                {card.changeText}
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* BOTTOM SECTIONS (KEPT AS IS) */}
         <div className="grid2">
-          <div className="card">
-            <div className="card-title">Application pipeline</div>
-            <div className="flex flex-col gap-[11px]">
-              <div><div className="flex justify-between mb-1"><span className="text-xs text-[var(--muted)]">Submitted</span><span className="text-xs font-medium">12</span></div><div className="h-[3px] bg-[var(--surface3)] rounded"><div className="h-full rounded bg-[#635bff]" style={{width:'100%'}}></div></div></div>
-              <div><div className="flex justify-between mb-1"><span className="text-xs text-[var(--muted)]">Under review</span><span className="text-xs font-medium">5</span></div><div className="h-[3px] bg-[var(--surface3)] rounded"><div className="h-full rounded bg-[#f59e0b]" style={{width:'42%'}}></div></div></div>
-              <div><div className="flex justify-between mb-1"><span className="text-xs text-[var(--muted)]">Interview</span><span className="text-xs font-medium">2</span></div><div className="h-[3px] bg-[var(--surface3)] rounded"><div className="h-full rounded bg-[#16a34a]" style={{width:'17%'}}></div></div></div>
-              <div><div className="flex justify-between mb-1"><span className="text-xs text-[var(--muted)]">Offer received</span><span className="text-xs font-medium">1</span></div><div className="h-[3px] bg-[var(--surface3)] rounded"><div className="h-full rounded bg-[#3b82f6]" style={{width:'8%'}}></div></div></div>
+          <div className="card" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', color: 'white', border: 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '10px' }}>
+                  Ready for your next move?
+                </div>
+                <p style={{ fontSize: '12px', opacity: 0.8, marginBottom: '20px', maxWidth: '250px' }}>
+                  Explore thousands of jobs tailored to your skills in the Algerian market.
+                </p>
+                <Link href="/jobs" className="btn-primary" style={{ background: 'white', color: 'var(--accent)', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  Explore Jobs <ArrowRight size={14} />
+                </Link>
+              </div>
+              <TrendingUp size={60} style={{ opacity: 0.1 }} />
             </div>
           </div>
+
           <div className="card">
-            <div className="card-title">Recommended for you</div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2.5 p-[9px] bg-[var(--surface2)] rounded-lg border border-[var(--border)]">
-                <div className="job-logo bg-[#fff5f6] text-[var(--accent)] text-xs">SN</div>
-                <div className="flex-1"><div className="text-xs font-medium">Frontend Engineer</div><div className="text-[11px] text-[var(--muted)]">Sonatrach Digital</div></div>
-                <span className="tag remote text-[10px]">Remote</span>
-              </div>
+            <div className="card-title">Recent Activity</div>
+            <div style={{ marginTop: '15px' }}>
+              {stats.total === 0 ? (
+                <div className="text-center py-4 text-[var(--muted)] text-xs">No activity yet. Your applications will appear here.</div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'var(--surface2)', borderRadius: '8px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }}></div>
+                    <div style={{ fontSize: '12px' }}>You have <strong>{stats.total}</strong> active applications in progress.</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
