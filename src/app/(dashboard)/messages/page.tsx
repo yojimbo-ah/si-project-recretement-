@@ -30,10 +30,12 @@ function MessagesContent() {
   const [search, setSearch] = useState('')
   const [historicMessages, setHistoricMessages] = useState<Message[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-const { messages } = useChatRealtime({
-  currentUserId: currentUser?.id ?? undefined,
-  otherUserId: selectedContact?.id ?? undefined,
-})
+
+  const { messages } = useChatRealtime(
+    currentUser?.id ?? null,
+    selectedContact?.id ?? null
+  )
+
   // Fusionner historique + temps réel
   const allMessages = useMemo(() => {
     const map = new Map<string, Message>()
@@ -64,7 +66,7 @@ const { messages } = useChatRealtime({
       setContacts(data || [])
 
       // Pré-sélectionner via query param
-      const targetId = searchParams.get('userId')
+      const targetId = searchParams.get('to') || searchParams.get('userId')
       if (targetId && data) {
         const target = data.find((c: Contact) => c.id === targetId)
         if (target) setSelectedContact(target)
