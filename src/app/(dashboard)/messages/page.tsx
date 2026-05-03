@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useChatRealtime } from '@/hooks/useChatRealtime'
 import { Send, Search, MessageSquare } from 'lucide-react'
@@ -17,15 +17,27 @@ export default function MessagesPage() {
   const [selectedContact, setSelectedContact] = useState<any>(null)
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [historicMessages, setHistoricMessages] = useState<any[]>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
-  const { messages, status: realtimeStatus, error: realtimeError } = useChatRealtime({
+
+  const { messages: realtimeMessages, status: realtimeStatus, error: realtimeError } = useChatRealtime({
     currentUserId: currentUser?.id,
     otherUserId: selectedContact?.id
   })
 
+  // Fusionner historique + temps réel
+  const allMessages = useMemo(() => {
+    const map = new Map()
+    historicMessages.forEach(m => map.set(m.id, m))
+    realtimeMessages.forEach(m => map.set(m.id, m))
+    return Array.from(map.values()).sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  }, [historicMessages, realtimeMessages])
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [allMessages])
 
   // 1. Initialisation de l'utilisateur et des conversations
   useEffect(() => {
@@ -72,30 +84,33 @@ export default function MessagesPage() {
     initMessages()
   }, [directMessageId])
 
-  // 2. Ecoute globale des nouveaux messages en temps réel
+  // 2. Charger l'historique quand on change de contact
+  useEffect(() => {
+    if (!selectedContact || !currentUser) return
+    setHistoricMessages([])
+
+    async function loadChat() {
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedContact.id}),and(sender_id.eq.${selectedContact.id},receiver_id.eq.${currentUser.id})`)
+        .order('created_at', { ascending: true })
+      
+      setHistoricMessages(data || [])
+    }
+    loadChat()
+  }, [selectedContact, currentUser])
+
+  // 3. Ecoute globale pour mettre à jour la liste des conversations
   useEffect(() => {
     if (!currentUser) return
 
     const channel = supabase
       .channel(`user-messages-${currentUser.id}`)
       .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'messages'
-        }, 
+        { event: 'INSERT', schema: 'public', table: 'messages' }, 
         (payload) => {
           const newMsg = payload.new as any
-          
-          if (selectedContact && (
-            (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedContact.id) ||
-            (newMsg.sender_id === selectedContact.id && newMsg.receiver_id === currentUser.id)
-          )) {
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMsg.id)) return prev
-              return [...prev, newMsg]
-            })
-          }
 
           if (newMsg.receiver_id === currentUser.id || newMsg.sender_id === currentUser.id) {
             const otherPartyId = newMsg.sender_id === currentUser.id ? newMsg.receiver_id : newMsg.sender_id
@@ -115,26 +130,8 @@ export default function MessagesPage() {
       )
       .subscribe()
 
-    return () => { 
-      supabase.removeChannel(channel) 
-    }
-  }, [currentUser, selectedContact?.id])
-
-  // 3. Recharger le chat quand on change de contact
-  useEffect(() => {
-    if (!selectedContact || !currentUser) return
-
-    async function loadChat() {
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedContact.id}),and(sender_id.eq.${selectedContact.id},receiver_id.eq.${currentUser.id})`)
-        .order('created_at', { ascending: true })
-      
-      setMessages(data || [])
-    }
-    loadChat()
-  }, [selectedContact, currentUser])
+    return () => { supabase.removeChannel(channel) }
+  }, [currentUser])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -162,7 +159,6 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* ✅ CORRECTION : height: 100% + overflow: hidden */}
       <div className="content" style={{ display: 'flex', gap: '20px', height: '100%', overflow: 'hidden' }}>
 
         {/* Liste des conversations */}
@@ -217,7 +213,7 @@ export default function MessagesPage() {
         <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden', height: '100%' }}>
           {selectedContact ? (
             <>
-              {/* Header - toujours visible */}
+              {/* Header */}
               <div style={{ 
                 padding: '15px 20px', 
                 borderBottom: '1px solid var(--border2)', 
@@ -242,36 +238,27 @@ export default function MessagesPage() {
                 </div>
               </div>
               
-              {/* Zone des messages - scroll uniquement ici */}
+              {/* Zone des messages */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8f9fa' }}>
-                {messages.map((m, index) => {
+                {allMessages.map((m, index) => {
                   const isMine = m.sender_id === currentUser?.id
                   const msgDate = new Date(m.created_at)
-                  
-                  // Calcul pour le séparateur de date (Style Instagram)
-                  const prevMsg = index > 0 ? messages[index - 1] : null
+                  const prevMsg = index > 0 ? allMessages[index - 1] : null
                   const prevDate = prevMsg ? new Date(prevMsg.created_at) : null
-                  
                   const options: Intl.DateTimeFormatOptions = { timeZone: 'Africa/Algiers' }
                   const isNewDay = !prevDate || 
                     msgDate.toLocaleDateString('en-US', options) !== prevDate.toLocaleDateString('en-US', options)
 
-
                   const formatDateLabel = (date: Date) => {
-                    // On utilise le fuseau d'Alger pour TOUS les calculs de comparaison
                     const options: Intl.DateTimeFormatOptions = { timeZone: 'Africa/Algiers', year: 'numeric', month: 'numeric', day: 'numeric' }
-                    
                     const now = new Date()
                     const yesterday = new Date()
                     yesterday.setDate(yesterday.getDate() - 1)
-
                     const dateStr = date.toLocaleDateString('en-US', options)
                     const nowStr = now.toLocaleDateString('en-US', options)
                     const yesterdayStr = yesterday.toLocaleDateString('en-US', options)
-
                     if (dateStr === nowStr) return "Today"
                     if (dateStr === yesterdayStr) return "Yesterday"
-                    
                     return date.toLocaleDateString('en-US', { 
                       timeZone: 'Africa/Algiers',
                       day: 'numeric', 
@@ -295,7 +282,6 @@ export default function MessagesPage() {
                           {formatDateLabel(msgDate)}
                         </div>
                       )}
-                      
                       <div style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
                         <div style={{ 
                           padding: '10px 14px', 
@@ -322,8 +308,7 @@ export default function MessagesPage() {
                 <div ref={chatEndRef} />
               </div>
 
-
-              {/* Formulaire - toujours visible */}
+              {/* Formulaire */}
               <form onSubmit={handleSendMessage} style={{ 
                 padding: '15px', 
                 borderTop: '1px solid var(--border2)', 
