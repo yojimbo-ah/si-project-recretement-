@@ -8,8 +8,29 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Génère un lien signé temporaire (60s) - seul le propriétaire peut télécharger
+  const downloadCV = async (cvUrl: string) => {
+    if (!cvUrl) return
+    // Extraire le chemin du fichier depuis l'URL
+    const path = cvUrl.split('/cv_bucket/')[1]
+    if (!path) {
+      // Si c'est déjà un lien direct (ancien format), ouvrir directement
+      window.open(cvUrl, '_blank')
+      return
+    }
+    const { data, error } = await supabase.storage
+      .from('cv_bucket')
+      .createSignedUrl(path, 60) // lien valide 60 secondes
+    if (error || !data) {
+      alert('Unable to access CV. Please try again.')
+      return
+    }
+    window.open(data.signedUrl, '_blank')
+  }
+
   async function loadApplications() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) return
 
     const { data } = await supabase
@@ -89,8 +110,9 @@ export default function ApplicationsPage() {
                   <div className="kcard-role" style={{ fontSize: '11px', color: '#4c1d95' }}>{app.job_offers?.title}</div>
                   <div className="kcard-tags" style={{ display: 'flex', gap: '4px', marginTop: '7px', flexWrap: 'wrap' }}>
                     <span className="kcard-tag" style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: '#ede9fe', color: '#7c3aed' }}>
-                      {new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(app.created_at).toLocaleDateString('fr-DZ', { month: 'short', day: 'numeric' })}
                     </span>
+
                   </div>
                 </div>
               ))}
@@ -115,11 +137,30 @@ export default function ApplicationsPage() {
                 <tr key={app.id} style={{ borderBottom: '1px solid rgba(109,91,255,0.1)' }}>
                   <td style={{ padding: '11px 10px', fontWeight: 500 }}>{app.job_offers?.title}</td>
                   <td style={{ padding: '11px 10px', color: '#4c1d95' }}>{app.job_offers?.company}</td>
-                  <td style={{ padding: '11px 10px', color: '#4c1d95' }}>{new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                  <td style={{ padding: '11px 10px', color: '#4c1d95' }}>{new Date(app.created_at).toLocaleDateString('fr-DZ', { month: 'short', day: 'numeric' })}</td>
+
                   <td style={{ padding: '11px 10px' }}>
-                    <a href={app.cv_url} target="_blank" style={{ color: '#2563eb', fontSize: '11px', textDecoration: 'none', cursor: 'pointer' }}>
-                      {app.cv_name || 'CV_2026.pdf'}
-                    </a>
+                    {app.cv_url ? (
+                      <button
+                        onClick={() => downloadCV(app.cv_url)}
+                        style={{ 
+                          color: '#7c3aed', 
+                          fontSize: '11px', 
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontWeight: 500,
+                          padding: 0
+                        }}
+                      >
+                        📄 {app.cv_name || 'CV.pdf'}
+                      </button>
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontSize: '11px' }}>No CV</span>
+                    )}
                   </td>
                   <td style={{ padding: '11px 10px' }}>
                     <span style={{ 

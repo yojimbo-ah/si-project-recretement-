@@ -12,15 +12,21 @@ export default function TalentsPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTalent, setSelectedTalent] = useState<any | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadTalents() {
-      const { data, error } = await supabase
+      setLoading(true)
+      const { data, error: supabaseError } = await supabase
         .from('profiles')
         .select('*')
-        .order('created_at', { ascending: false })
       
-      if (data) setTalents(data)
+      if (supabaseError) {
+        console.error('Erreur Supabase:', supabaseError)
+        setError(supabaseError.message)
+      } else {
+        setTalents(data || [])
+      }
       setLoading(false)
     }
     loadTalents()
@@ -57,6 +63,11 @@ export default function TalentsPage() {
             />
           </div>
         </div>
+        {error && (
+          <div style={{ padding: '15px', background: '#fee2e2', color: '#ef4444', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+            <strong>Erreur de chargement :</strong> {error}
+          </div>
+        )}
 
         {loading && <div className="p-8 text-center text-[var(--muted)] text-sm">Loading community...</div>}
 

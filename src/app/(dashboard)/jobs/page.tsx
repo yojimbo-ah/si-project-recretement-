@@ -9,16 +9,28 @@ export default function Jobs() {
   const supabase = createClient()
   const [jobs, setJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     async function loadJobs() {
+      setLoading(true)
+      setError(null)
+
+      // Rafraîchir la session si le JWT est expiré
+      await supabase.auth.refreshSession()
+      
       const { data, error } = await supabase
         .from('job_offers')
         .select('*')
         .order('created_at', { ascending: false })
       
-      if (data) setJobs(data)
+      if (error) {
+        console.error('Supabase error:', error)
+        setError(error.message)
+      } else {
+        setJobs(data || [])
+      }
       setLoading(false)
     }
     loadJobs()
@@ -39,7 +51,7 @@ export default function Jobs() {
       <div className="topbar">
         <div>
           <div className="page-title">Browse jobs</div>
-          <div className="page-sub">{filteredJobs.length} open positions match your search</div>
+          <div className="page-sub">{loading ? 'Loading...' : `${filteredJobs.length} open positions match your search`}</div>
         </div>
       </div>
       <div className="content">
@@ -58,11 +70,19 @@ export default function Jobs() {
         
         {loading && <div className="p-8 text-center text-[var(--muted)] text-sm">Loading jobs...</div>}
 
-        {!loading && filteredJobs.length === 0 && (
-          <div className="p-8 text-center text-[var(--muted)] text-sm">
-            No jobs found matching "{searchQuery}".
+        {!loading && error && (
+          <div className="p-8 text-center text-sm">
+            <div style={{ color: '#ef4444', marginBottom: '8px' }}>⚠ Error: {error}</div>
+            <button className="btn-primary text-xs" onClick={() => window.location.reload()}>Retry</button>
           </div>
         )}
+
+        {!loading && !error && filteredJobs.length === 0 && (
+          <div className="p-8 text-center text-[var(--muted)] text-sm">
+            No jobs found. The database may be empty.
+          </div>
+        )}
+
 
         {!loading && filteredJobs.map(job => (
           <div key={job.id} className="job-card">

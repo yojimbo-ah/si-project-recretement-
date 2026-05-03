@@ -13,7 +13,9 @@ export default function Notifications() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
+
       if (!user) return
 
       // 1. Chargement initial
@@ -29,35 +31,76 @@ export default function Notifications() {
           id: m.id,
           title: `New message from ${m.profiles?.first_name || 'User'}`,
           text: m.content,
-          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          time: new Date(m.created_at).toLocaleTimeString('fr-DZ', { 
+            timeZone: 'Africa/Algiers',
+            hour: '2-digit', 
+            minute: '2-digit' 
+          })
+
         })))
       }
 
-      // 2. Ecoute en temps réel simplifiée
-      if (!channelRef.current) {
-        console.log("Starting Notifications Realtime for user:", user.id)
-        channelRef.current = supabase
-          .channel('global-notifs')
-          .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'messages' }, 
-            async (payload) => {
-              const newMsg = payload.new
-              // On vérifie si le message nous est destiné
-              if (newMsg.receiver_id === user.id) {
-                console.log("New notification received!")
-                const { data: sender } = await supabase.from('profiles').select('first_name').eq('id', newMsg.sender_id).single()
-                const newNotif = {
-                  id: newMsg.id,
-                  title: `New message from ${sender?.first_name || 'User'}`,
-                  text: newMsg.content,
-                  time: 'Just now'
-                }
-                setNotifications(prev => [newNotif, ...prev].slice(0, 5))
-              }
+      // 2. Ecoute en temps réel
+      if (channelRef.current) return
+
+      const channelName = `notifs-${user.id}`
+      const channel = supabase.channel(channelName)
+      channelRef.current = channel
+
+      channel
+        // Listener pour les nouveaux messages
+        .on('postgres_changes', 
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages',
+            filter: `receiver_id=eq.${user.id}` 
+          }, 
+          async (payload) => {
+            const newMsg = payload.new as any
+            const { data: sender } = await supabase.from('profiles').select('first_name').eq('id', newMsg.sender_id).single()
+
+            const newNotif = {
+              id: newMsg.id,
+              title: `New message from ${sender?.first_name || 'User'}`,
+              text: newMsg.content,
+              time: 'Just now'
             }
-          )
-          .subscribe()
-      }
+            setNotifications(prev => [newNotif, ...prev].slice(0, 5))
+          }
+        )
+        // Listener pour les changements de statut (offres, interviews, etc)
+        .on('postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'applications',
+            filter: `user_id=eq.${user.id}`
+          },
+          async (payload) => {
+            const updatedApp = payload.new as any
+            const { data: job } = await supabase.from('job_offers').select('title, company').eq('id', updatedApp.job_id).single()
+            
+            const statusLabels: Record<string, string> = {
+              'pending': 'under review',
+              'review': 'being reviewed',
+              'interview': 'invited to interview',
+              'offer': 'received an OFFER!',
+              'rejected': 'not selected this time'
+            }
+
+            const newNotif = {
+              id: updatedApp.id + updatedApp.status,
+              title: `Application Update: ${job?.company || 'Job'}`,
+              text: `Your application for ${job?.title} is now ${statusLabels[updatedApp.status] || updatedApp.status}.`,
+              time: 'Just now'
+            }
+            setNotifications(prev => [newNotif, ...prev].slice(0, 5))
+          }
+        )
+        .subscribe()
+
+
     }
 
     loadData()

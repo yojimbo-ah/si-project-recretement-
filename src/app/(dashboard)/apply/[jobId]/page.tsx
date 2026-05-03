@@ -39,38 +39,50 @@ export default function ApplyPage() {
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!file) return alert('Veuillez sélectionner un CV (PDF)')
-    if (!job) return alert("L'offre d'emploi n'existe pas.")
+    if (!job) return alert("Job not found.")
     
     setLoading(true)
+    // Validation du CV obligatoire avant de commencer
+    if (!file) {
+      alert('Veuillez uploader votre CV (PDF) avant de postuler.')
+      setLoading(false)
+      return
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Vous devez être connecté')
+      let cvUrl = null
 
       const filePath = `${user.id}/${Date.now()}_${file.name}`
-      
       const { error: uploadError } = await supabase.storage
         .from('cv_bucket')
         .upload(filePath, file)
-        
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('cv_bucket')
-        .getPublicUrl(filePath)
+      
+      if (uploadError) {
+        if (uploadError.message.includes('Bucket not found')) {
+          throw new Error('Le stockage des CV n\'est pas configuré. Veuillez contacter l\'administrateur.')
+        }
+        throw uploadError
+      }
+      
+      // Stocker uniquement le chemin (pas l'URL publique) pour la sécurité
+      cvUrl = filePath
 
       const { error: insertError } = await supabase
         .from('applications')
         .insert({
           user_id: user.id,
           job_id: job.id,
-          cv_url: publicUrl,
+          cv_url: cvUrl,
           status: 'pending'
         })
         
       if (insertError) {
         if (insertError.message.includes('duplicate key') || insertError.message.includes('unique constraint')) {
-          throw new Error('Vous avez déjà postulé à cette offre.')
+          alert('Vous avez déjà postulé à cette offre. Redirection vers vos candidatures...');
+          router.push('/applications')
+          return
         }
         throw insertError
       }
@@ -111,7 +123,7 @@ export default function ApplyPage() {
             <div className="form-group"><label className="form-label">Cover letter</label><textarea className="form-input" rows={4} placeholder="Why are you the perfect fit?"></textarea></div>
           </div>
           <div>
-            <label className="form-label block mb-2">CV / Resume <span className="text-[var(--accent)]">*</span> (PDF only)</label>
+            <label className="form-label block mb-2">CV / Resume <span className="text-[#ef4444] font-bold">(required · PDF)</span></label>
             <label className="upload-zone block">
               <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               <Upload className="w-9 h-9 mx-auto mb-2.5 text-[var(--muted)]" />

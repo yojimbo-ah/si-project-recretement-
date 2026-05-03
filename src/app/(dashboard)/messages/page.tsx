@@ -26,7 +26,9 @@ export default function MessagesPage() {
   // 1. Initialisation de l'utilisateur et des conversations
   useEffect(() => {
     async function initMessages() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
+
       if (!user) return
       setCurrentUser(user)
 
@@ -71,9 +73,13 @@ export default function MessagesPage() {
     if (!currentUser) return
 
     const channel = supabase
-      .channel(`chat-room-${selectedContact?.id ?? 'global'}`)
+      .channel(`user-messages-${currentUser.id}`)
       .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'messages' }, 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'messages'
+        }, 
         (payload) => {
           const newMsg = payload.new as any
           
@@ -82,15 +88,19 @@ export default function MessagesPage() {
             (newMsg.sender_id === selectedContact.id && newMsg.receiver_id === currentUser.id)
           )) {
             setMessages(prev => {
-              if (prev.find(m => m.id === newMsg.id)) return prev
+              if (prev.some(m => m.id === newMsg.id)) return prev
               return [...prev, newMsg]
             })
           }
 
-          if (newMsg.receiver_id === currentUser.id) {
+          if (newMsg.receiver_id === currentUser.id || newMsg.sender_id === currentUser.id) {
+            const otherPartyId = newMsg.sender_id === currentUser.id ? newMsg.receiver_id : newMsg.sender_id
+            
             setConversations(prev => {
-              if (prev.find(c => c.id === newMsg.sender_id)) return prev
-              supabase.from('profiles').select('*').eq('id', newMsg.sender_id).single()
+              const exists = prev.find(c => c.id === otherPartyId)
+              if (exists) return prev
+              
+              supabase.from('profiles').select('*').eq('id', otherPartyId).single()
                 .then(({ data }) => {
                   if (data) setConversations(p => [data, ...p])
                 })
@@ -101,8 +111,10 @@ export default function MessagesPage() {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [selectedContact, currentUser]) // On garde 2 éléments fixes ici
+    return () => { 
+      supabase.removeChannel(channel) 
+    }
+  }, [currentUser, selectedContact?.id])
 
   // 3. Recharger le chat quand on change de contact
   useEffect(() => {
@@ -127,16 +139,6 @@ export default function MessagesPage() {
     const msgContent = newMessage
     setNewMessage('')
 
-    const tempId = Date.now()
-    const tempMsg = {
-      id: tempId,
-      sender_id: currentUser.id,
-      receiver_id: selectedContact.id,
-      content: msgContent,
-      created_at: new Date().toISOString()
-    }
-    setMessages(prev => [...prev, tempMsg])
-
     await supabase.from('messages').insert({
       sender_id: currentUser.id,
       receiver_id: selectedContact.id,
@@ -155,12 +157,19 @@ export default function MessagesPage() {
           <Notifications />
         </div>
       </div>
-      <div className="content" style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 140px)' }}>
+
+      {/* ✅ CORRECTION : height: 100% + overflow: hidden */}
+      <div className="content" style={{ display: 'flex', gap: '20px', height: '100%', overflow: 'hidden' }}>
+
+        {/* Liste des conversations */}
         <div className="card" style={{ width: '280px', display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '15px', borderBottom: '1px solid var(--border2)' }}>
+          <div style={{ padding: '15px', borderBottom: '1px solid var(--border2)', flexShrink: 0 }}>
             <div style={{ position: 'relative' }}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--hint)]" />
-              <input className="w-full bg-[var(--surface2)] border-none rounded-lg py-2 pr-3 pl-[30px] text-[11px] outline-none" placeholder="Search conversations..." />
+              <input 
+                className="w-full bg-[var(--surface2)] border-none rounded-lg py-2 pr-3 pl-[30px] text-[11px] outline-none" 
+                placeholder="Search conversations..." 
+              />
             </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -200,10 +209,21 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
+        {/* Zone de Chat */}
+        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden', height: '100%' }}>
           {selectedContact ? (
             <>
-              <div style={{ padding: '15px 20px', borderBottom: '1px solid var(--border2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {/* Header - toujours visible */}
+              <div style={{ 
+                padding: '15px 20px', 
+                borderBottom: '1px solid var(--border2)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '12px', 
+                background: 'white', 
+                zIndex: 10,
+                flexShrink: 0
+              }}>
                 <div className="avatar-sm" style={{ width: '32px', height: '32px' }}>
                   {(selectedContact.first_name?.[0] || '') + (selectedContact.last_name?.[0] || '')}
                 </div>
@@ -213,24 +233,79 @@ export default function MessagesPage() {
                 </div>
               </div>
               
+              {/* Zone des messages - scroll uniquement ici */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8f9fa' }}>
-                {messages.map(m => {
+                {messages.map((m, index) => {
                   const isMine = m.sender_id === currentUser?.id
+                  const msgDate = new Date(m.created_at)
+                  
+                  // Calcul pour le séparateur de date (Style Instagram)
+                  const prevMsg = index > 0 ? messages[index - 1] : null
+                  const prevDate = prevMsg ? new Date(prevMsg.created_at) : null
+                  
+                  const options: Intl.DateTimeFormatOptions = { timeZone: 'Africa/Algiers' }
+                  const isNewDay = !prevDate || 
+                    msgDate.toLocaleDateString('en-US', options) !== prevDate.toLocaleDateString('en-US', options)
+
+
+                  const formatDateLabel = (date: Date) => {
+                    // On utilise le fuseau d'Alger pour TOUS les calculs de comparaison
+                    const options: Intl.DateTimeFormatOptions = { timeZone: 'Africa/Algiers', year: 'numeric', month: 'numeric', day: 'numeric' }
+                    
+                    const now = new Date()
+                    const yesterday = new Date()
+                    yesterday.setDate(yesterday.getDate() - 1)
+
+                    const dateStr = date.toLocaleDateString('en-US', options)
+                    const nowStr = now.toLocaleDateString('en-US', options)
+                    const yesterdayStr = yesterday.toLocaleDateString('en-US', options)
+
+                    if (dateStr === nowStr) return "Today"
+                    if (dateStr === yesterdayStr) return "Yesterday"
+                    
+                    return date.toLocaleDateString('en-US', { 
+                      timeZone: 'Africa/Algiers',
+                      day: 'numeric', 
+                      month: 'long', 
+                      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
+                    })
+                  }
+
                   return (
-                    <div key={m.id} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
-                      <div style={{ 
-                        padding: '10px 14px', 
-                        borderRadius: isMine ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                        background: isMine ? 'var(--accent)' : 'white',
-                        color: isMine ? 'white' : 'var(--text)',
-                        fontSize: '12px',
-                        boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                        border: isMine ? 'none' : '1px solid var(--border2)'
-                      }}>
-                        {m.content}
-                      </div>
-                      <div style={{ fontSize: '9px', color: 'var(--hint)', marginTop: '4px', textAlign: isMine ? 'right' : 'left' }}>
-                        {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                      {isNewDay && (
+                        <div style={{ 
+                          textAlign: 'center', 
+                          margin: '20px 0 10px', 
+                          fontSize: '10px', 
+                          textTransform: 'uppercase', 
+                          letterSpacing: '0.5px',
+                          color: 'var(--muted)',
+                          fontWeight: 600
+                        }}>
+                          {formatDateLabel(msgDate)}
+                        </div>
+                      )}
+                      
+                      <div style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
+                        <div style={{ 
+                          padding: '10px 14px', 
+                          borderRadius: isMine ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                          background: isMine ? 'var(--accent)' : 'white',
+                          color: isMine ? 'white' : 'var(--text)',
+                          fontSize: '12px',
+                          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                          border: isMine ? 'none' : '1px solid var(--border2)'
+                        }}>
+                          {m.content}
+                        </div>
+                        <div style={{ fontSize: '9px', color: 'var(--hint)', marginTop: '4px', textAlign: isMine ? 'right' : 'left' }}>
+                          {msgDate.toLocaleTimeString('fr-DZ', { 
+                            timeZone: 'Africa/Algiers', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </div>
                       </div>
                     </div>
                   )
@@ -238,7 +313,17 @@ export default function MessagesPage() {
                 <div ref={chatEndRef} />
               </div>
 
-              <form onSubmit={handleSendMessage} style={{ padding: '15px', borderTop: '1px solid var(--border2)', display: 'flex', gap: '10px' }}>
+
+              {/* Formulaire - toujours visible */}
+              <form onSubmit={handleSendMessage} style={{ 
+                padding: '15px', 
+                borderTop: '1px solid var(--border2)', 
+                display: 'flex', 
+                gap: '10px', 
+                background: 'white', 
+                zIndex: 10,
+                flexShrink: 0
+              }}>
                 <input 
                   className="form-input" 
                   style={{ borderRadius: '20px', padding: '10px 18px' }}

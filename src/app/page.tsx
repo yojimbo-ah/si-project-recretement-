@@ -16,10 +16,13 @@ export default function AuthPage() {
     e.preventDefault()
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (!error) router.push('/dashboard')
-      else alert(error.message)
+      if (!error) {
+        router.push('/dashboard')
+      } else {
+        alert(error.message)
+      }
     } else {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -30,7 +33,7 @@ export default function AuthPage() {
         }
       })
       if (!error) {
-        alert('Account created! Please check your email.')
+        alert('Compte créé ! Vérifiez vos emails pour confirmer votre inscription.')
         setIsLogin(true)
       } else {
         alert(error.message)
@@ -58,18 +61,6 @@ export default function AuthPage() {
               </div>
               <div className="feat-text"><strong>One-click applications</strong>Upload your CV once and apply to any job instantly</div>
             </div>
-            <div className="feat-row">
-              <div className="feat-icon">
-                <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
-              </div>
-              <div className="feat-text"><strong>Real-time tracking</strong>See your application status update live, from review to offer</div>
-            </div>
-            <div className="feat-row">
-              <div className="feat-icon">
-                <svg viewBox="0 0 16 16"><path d="M8 2l2 4 4.5.7-3.3 3.2.8 4.5L8 12.3 4 14.4l.8-4.5L1.5 6.7 6 6z"/></svg>
-              </div>
-              <div className="feat-text"><strong>Smart matching</strong>Get recommended roles that fit your skills automatically</div>
-            </div>
           </div>
         </div>
         <div className="auth-right">
@@ -81,7 +72,6 @@ export default function AuthPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="auth-form-title">{isLogin ? 'Welcome back' : 'Create your account'}</div>
-              <div className="auth-form-sub">{isLogin ? 'Sign in to continue your job search' : 'Start your job search — it\'s completely free'}</div>
               
               {!isLogin && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
@@ -104,10 +94,9 @@ export default function AuthPage() {
               <div className="input-group">
                 <label className="form-label">Password</label>
                 <input required className="form-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
-                {isLogin && <div className="forgot">Forgot password?</div>}
               </div>
 
-              <button type="submit" className="btn-full btn-red" style={{ marginTop: '4px' }}>
+              <button type="submit" className="btn-full btn-red" style={{ marginTop: '12px' }}>
                 {isLogin ? 'Sign in' : 'Create free account'}
               </button>
             </form>
