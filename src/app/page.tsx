@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AuthPage() {
+  const [checkingSession, setCheckingSession] = useState(true)
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -11,6 +12,28 @@ export default function AuthPage() {
   const [lastName, setLastName] = useState('')
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    let active = true
+
+    async function loadSession() {
+      const { data } = await supabase.auth.getSession()
+      if (!active) return
+
+      if (data.session) {
+        router.replace('/dashboard')
+        return
+      }
+
+      setCheckingSession(false)
+    }
+
+    loadSession()
+
+    return () => {
+      active = false
+    }
+  }, [router, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,6 +65,7 @@ export default function AuthPage() {
   }
 
   return (
+    checkingSession ? null :
     <div style={{ padding: '1rem 0', display: 'flex', justifyContent: 'center', minHeight: '100vh', alignItems: 'center' }}>
       <div className="auth-screen">
         <div className="auth-left">

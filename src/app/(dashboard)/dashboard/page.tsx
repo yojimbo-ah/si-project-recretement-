@@ -103,7 +103,7 @@ export default function Dashboard() {
             <div className="card-title">Recent Activity</div>
             <div style={{ marginTop: '15px' }}>
               {stats.total === 0 ? (
-                <div className="text-center py-4 text-[var(--muted)] text-xs">No activity yet. Your applications will appear here.</div>
+                <div className="text-center py-4 text-(--muted) text-xs">No activity yet. Your applications will appear here.</div>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'var(--surface2)', borderRadius: '8px' }}>

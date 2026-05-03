@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useChatRealtime } from '@/hooks/useChatRealtime'
 import { Send, Search, MessageSquare } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Notifications from '@/components/Notifications'
@@ -14,10 +15,13 @@ export default function MessagesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [conversations, setConversations] = useState<any[]>([])
   const [selectedContact, setSelectedContact] = useState<any>(null)
-  const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const { messages, status: realtimeStatus, error: realtimeError } = useChatRealtime({
+    currentUserId: currentUser?.id,
+    otherUserId: selectedContact?.id
+  })
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -229,7 +233,12 @@ export default function MessagesPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600 }}>{selectedContact.first_name} {selectedContact.last_name}</div>
-                  <div style={{ fontSize: '10px', color: '#16a34a' }}>● Online</div>
+                  <div style={{ fontSize: '10px', color: realtimeStatus === 'connected' ? '#16a34a' : 'var(--muted)' }}>
+                    ● {realtimeStatus === 'connected' ? 'Live' : 'Connecting'}
+                  </div>
+                  {realtimeError && (
+                    <div style={{ fontSize: '10px', color: '#ef4444' }}>{realtimeError}</div>
+                  )}
                 </div>
               </div>
               

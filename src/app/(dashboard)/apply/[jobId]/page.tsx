@@ -109,7 +109,7 @@ export default function ApplyPage() {
         </div>
       </div>
       <div className="content">
-        <form onSubmit={handleApply} className="grid2 gap-[18px]">
+        <form onSubmit={handleApply} className="grid2 gap-4.5">
           <div>
             <div className="form-group">
               <label className="form-label">Full name</label>
@@ -126,16 +126,16 @@ export default function ApplyPage() {
             <label className="form-label block mb-2">CV / Resume <span className="text-[#ef4444] font-bold">(required · PDF)</span></label>
             <label className="upload-zone block">
               <input type="file" accept="application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-              <Upload className="w-9 h-9 mx-auto mb-2.5 text-[var(--muted)]" />
-              <div className="text-[13px] text-[var(--muted)]">Drop your CV here or <span className="text-[var(--accent)] cursor-pointer font-medium">browse files</span></div>
-              <div className="text-[11px] text-[var(--hint)] mt-1">PDF only · Max 5 MB · Stored in Supabase Storage</div>
+              <Upload className="w-9 h-9 mx-auto mb-2.5 text-(--muted)" />
+              <div className="text-[13px] text-(--muted)">Drop your CV here or <span className="text-(--accent) cursor-pointer font-medium">browse files</span></div>
+              <div className="text-[11px] text-(--hint) mt-1">PDF only · Max 5 MB · Stored in Supabase Storage</div>
             </label>
             
             {file && (
-              <div className="mt-3 bg-[var(--surface3)] rounded-lg p-3 flex items-center gap-2.5 border border-[var(--border)]">
+              <div className="mt-3 bg-(--surface3) rounded-lg p-3 flex items-center gap-2.5 border border-(--border)">
                 <div className="flex-1">
-                  <div className="text-xs font-medium text-[var(--text)]">{file.name}</div>
-                  <div className="text-[10px] text-[var(--hint)]">{(file.size / 1024 / 1024).toFixed(2)} MB · Ready</div>
+                  <div className="text-xs font-medium text-(--text)">{file.name}</div>
+                  <div className="text-[10px] text-(--hint)">{(file.size / 1024 / 1024).toFixed(2)} MB · Ready</div>
                 </div>
               </div>
             )}
@@ -143,7 +143,7 @@ export default function ApplyPage() {
             <button type="submit" disabled={loading} className="btn-primary w-full p-3 text-[13px] mt-4 rounded-lg flex justify-center disabled:opacity-50">
               {loading ? 'Submitting...' : 'Submit application'}
             </button>
-            <p className="text-[10px] text-[var(--hint)] text-center mt-2.5 leading-[1.6]">Your data is securely stored via Supabase and only visible to you (RLS enforced).</p>
+            <p className="text-[10px] text-(--hint) text-center mt-2.5 leading-[1.6]">Your data is securely stored via Supabase and only visible to you (RLS enforced).</p>
           </div>
         </form>
       </div>
