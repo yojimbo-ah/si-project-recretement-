@@ -31,10 +31,10 @@ function MessagesContent() {
   const [historicMessages, setHistoricMessages] = useState<Message[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const { messages } = useChatRealtime(
-    currentUser?.id ?? null,
-    selectedContact?.id ?? null
-  )
+  const { messages } = useChatRealtime({
+  currentUserId: currentUser?.id ?? undefined,
+  otherUserId: selectedContact?.id ?? undefined,
+})
 
   // Fusionner historique + temps réel
   const allMessages = useMemo(() => {

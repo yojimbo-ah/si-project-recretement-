@@ -36,11 +36,6 @@ function isString(value: unknown): value is string {
 }
 
 function getRecordFromPayload(payload: unknown) {
-  // Payload shape from realtime.broadcast_changes():
-  // payload.payload.operation = INSERT | UPDATE | DELETE
-  // payload.payload.record.table = 'messages'
-  // payload.payload.record.record = { id, content, sender_id, receiver_id, created_at }
-  // payload.payload.old_record.record may exist for UPDATE/DELETE
   const payloadEnvelope = isRecord(payload) && isRecord(payload.payload)
     ? payload.payload
     : undefined
@@ -129,13 +124,13 @@ function mergeMessages(
   return sortMessages(Array.from(nextMap.values()))
 }
 
-export function useChatRealtime({
-  currentUserId,
-  otherUserId,
-}: {
-  currentUserId?: string
-  otherUserId?: string
-}): HookResult {
+export function useChatRealtime(params: {
+  currentUserId?: string | null
+  otherUserId?: string | null
+} | null | undefined): HookResult {
+  const currentUserId = params?.currentUserId ?? undefined
+  const otherUserId = params?.otherUserId ?? undefined
+
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [status, setStatus] = useState<HookStatus>('connecting')
   const [error, setError] = useState<string | undefined>()
@@ -151,13 +146,11 @@ export function useChatRealtime({
     if (!topic) return
 
     const activeTopic = topic
-
     let active = true
 
     async function setup() {
       setStatus('connecting')
       setError(undefined)
-
       setMessages((prev) => sortMessages(prev))
 
       const { data, error: sessionError } = await supabase.auth.getSession()
@@ -183,19 +176,7 @@ export function useChatRealtime({
       channel
         .on('broadcast', { event: '*' }, (payload) => {
           if (DEBUG_REALTIME) {
-            const payloadEnvelope = isRecord(payload) ? payload : undefined
-            const innerPayload = payloadEnvelope && isRecord(payloadEnvelope.payload)
-              ? payloadEnvelope.payload
-              : undefined
-            const operationLog = innerPayload && isRecord(innerPayload) ? innerPayload.operation : undefined
-            const recordLog = innerPayload && isRecord(innerPayload) ? innerPayload.record : undefined
-            const oldRecordLog = innerPayload && isRecord(innerPayload) ? innerPayload.old_record : undefined
             console.log('[realtime] raw payload', payload)
-            console.log('[realtime] payload', innerPayload)
-            console.log('[realtime] payload.operation', operationLog)
-            console.log('[realtime] payload.record', recordLog)
-            console.log('[realtime] payload.old_record', oldRecordLog)
-            console.log('[realtime] event', payloadEnvelope?.event)
           }
 
           const { operation, record, oldRecord } = getRecordFromPayload(payload)
