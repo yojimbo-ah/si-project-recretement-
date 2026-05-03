@@ -3,9 +3,9 @@ import { getServerClient } from '@/lib/supabase/serverClient'
 
 export async function GET(
   _request: Request,
-  context: { params: { conversationUserId: string } }
+  context: { params: Promise<{ conversationUserId: string }> }
 ) {
-  const otherUserId = context.params.conversationUserId
+  const { conversationUserId: otherUserId } = await context.params
 
   if (!otherUserId) {
     return NextResponse.json({ error: 'Missing otherUserId.' }, { status: 400 })
@@ -20,7 +20,6 @@ export async function GET(
 
   const currentUserId = authData.user.id
 
-  // Backend emits broadcast topics using least(sender_id, receiver_id) + greatest().
   const userA = currentUserId < otherUserId ? currentUserId : otherUserId
   const userB = currentUserId < otherUserId ? otherUserId : currentUserId
 
