@@ -32,11 +32,10 @@ function MessagesContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { messages } = useChatRealtime({
-  currentUserId: currentUser?.id ?? undefined,
-  otherUserId: selectedContact?.id ?? undefined,
-})
+    currentUserId: currentUser?.id ?? undefined,
+    otherUserId: selectedContact?.id ?? undefined,
+  })
 
-  // Fusionner historique + temps réel
   const allMessages = useMemo(() => {
     const map = new Map<string, Message>()
     historicMessages.forEach(m => map.set(m.id, m))
@@ -55,27 +54,59 @@ function MessagesContent() {
     getUser()
   }, [])
 
-  // 2. Récupérer les contacts (tous les users sauf soi)
+  // 2. Récupérer les contacts avec qui on a échangé des messages
   useEffect(() => {
     if (!currentUser) return
     async function loadContacts() {
+      const targetId = searchParams.get('to') || searchParams.get('userId')
+
+      const { data: msgData } = await supabase
+        .from('messages')
+        .select('sender_id, receiver_id')
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+
+      const contactIds = new Set<string>()
+      msgData?.forEach((m: any) => {
+        if (m.sender_id !== currentUser.id) contactIds.add(m.sender_id)
+        if (m.receiver_id !== currentUser.id) contactIds.add(m.receiver_id)
+      })
+
+      if (targetId && targetId !== currentUser.id) contactIds.add(targetId)
+
+      if (contactIds.size === 0) {
+        if (targetId) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, avatar_url')
+            .eq('id', targetId)
+            .single()
+          if (data) {
+            setContacts([data])
+            setSelectedContact(data)
+          }
+        }
+        return
+      }
+
       const { data } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, avatar_url')
-        .neq('id', currentUser.id)
+        .in('id', Array.from(contactIds))
+
       setContacts(data || [])
 
-      // Pré-sélectionner via query param
-      const targetId = searchParams.get('to') || searchParams.get('userId')
       if (targetId && data) {
         const target = data.find((c: Contact) => c.id === targetId)
         if (target) setSelectedContact(target)
+        else if (data.length > 0) setSelectedContact(data[0])
+      } else if (data && data.length > 0) {
+        setSelectedContact(data[0])
       }
     }
     loadContacts()
   }, [currentUser])
 
-  // 3. Charger l'historique quand on change de contact
+  // 3. Charger l'historique
   useEffect(() => {
     if (!selectedContact || !currentUser) return
     setHistoricMessages([])
@@ -93,21 +124,19 @@ function MessagesContent() {
     loadChat()
   }, [selectedContact, currentUser])
 
-  // 4. Scroll automatique vers le bas
+  // 4. Scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [allMessages])
 
-  // 5. Envoyer un message
+  // 5. Envoyer
   async function handleSendMessage() {
     if (!newMessage.trim() || !selectedContact || !currentUser) return
-
     await supabase.from('messages').insert({
       sender_id: currentUser.id,
       receiver_id: selectedContact.id,
       content: newMessage.trim(),
     })
-
     setNewMessage('')
   }
 
@@ -117,11 +146,10 @@ function MessagesContent() {
 
   return (
     <div className="page-content" style={{ display: 'flex', height: 'calc(100vh - 60px)', gap: 0, padding: 0 }}>
-      {/* Liste des contacts */}
       <div className="card" style={{ width: '280px', borderRadius: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Messages</h2>
-          <div className="input-wrapper" style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
             <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--hint)' }} />
             <input
               className="input"
@@ -132,8 +160,12 @@ function MessagesContent() {
             />
           </div>
         </div>
-
         <div style={{ overflowY: 'auto', flex: 1 }}>
+          {filteredContacts.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: 'var(--hint)' }}>
+              Aucune conversation
+            </div>
+          )}
           {filteredContacts.map(contact => (
             <div
               key={contact.id}
@@ -163,11 +195,9 @@ function MessagesContent() {
         </div>
       </div>
 
-      {/* Zone de chat */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {selectedContact ? (
           <>
-            {/* Header */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '50%',
@@ -179,24 +209,15 @@ function MessagesContent() {
               <span style={{ fontWeight: 600 }}>{selectedContact.first_name} {selectedContact.last_name}</span>
             </div>
 
-            {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {allMessages.map(msg => (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: msg.sender_id === currentUser?.id ? 'flex-end' : 'flex-start',
-                  }}
-                >
+                <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_id === currentUser?.id ? 'flex-end' : 'flex-start' }}>
                   <div style={{
-                    maxWidth: '60%',
-                    padding: '10px 14px',
+                    maxWidth: '60%', padding: '10px 14px',
                     borderRadius: msg.sender_id === currentUser?.id ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                     background: msg.sender_id === currentUser?.id ? 'var(--accent)' : 'var(--surface2)',
                     color: msg.sender_id === currentUser?.id ? 'white' : 'var(--text)',
-                    fontSize: '14px',
-                    lineHeight: '1.4',
+                    fontSize: '14px', lineHeight: '1.4',
                   }}>
                     {msg.content}
                   </div>
@@ -205,7 +226,6 @@ function MessagesContent() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px' }}>
               <input
                 className="input"
