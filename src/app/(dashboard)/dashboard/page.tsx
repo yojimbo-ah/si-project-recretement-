@@ -45,6 +45,13 @@ export default function Dashboard() {
 
   if (loading) return <div className="p-8">Loading...</div>
 
+  const getGreeting = () => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
   const statCards = [
     { label: 'Applications', value: stats.total, dotColor: '#635bff', changeText: 'Total submitted' },
     { label: 'In Review', value: stats.inReview, dotColor: '#f59e0b', changeText: 'Active now' },
@@ -56,13 +63,12 @@ export default function Dashboard() {
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">Good morning, {userName || 'Talent'}</div>
+          <div className="page-title">{getGreeting()}, {userName || 'Talent'}</div>
           <div className="page-sub">Here's your job search overview for today</div>
         </div>
       </div>
 
       <div className="content">
-        {/* STATS ROW (FROM DESIGN.HTML) */}
         <div className="stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '18px' }}>
           {statCards.map((card) => (
             <div key={card.label} className="stat-card" style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
@@ -80,7 +86,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* BOTTOM SECTIONS (KEPT AS IS) */}
         <div className="grid2">
           <div className="card" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', color: 'white', border: 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

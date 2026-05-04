@@ -6,6 +6,21 @@ import { Send, Search, MessageSquare } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Notifications from '@/components/Notifications'
 
+function formatMessageTime(createdAt: string): string {
+  const date = new Date(createdAt)
+  const now = new Date()
+  // Algeria is UTC+1
+  const toAlgeria = (d: Date) => new Date(d.getTime() + (60 - d.getTimezoneOffset()) * 60000)
+  const msgDate = toAlgeria(date)
+  const today = toAlgeria(now)
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  const time = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (msgDate.toDateString() === today.toDateString()) return time
+  if (msgDate.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`
+  return msgDate.toLocaleDateString('fr-DZ', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + time
+}
+
 function MessagesContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
@@ -23,7 +38,7 @@ function MessagesContent() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 1. Initialisation de l'utilisateur et des conversations
+  // 1. Init user + conversations
   useEffect(() => {
     async function initMessages() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -34,7 +49,7 @@ function MessagesContent() {
         .from('messages')
         .select('sender_id, receiver_id')
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      
+
       const contactIds = new Set<string>()
       msgData?.forEach(m => {
         if (m.sender_id !== user.id) contactIds.add(m.sender_id)
@@ -50,9 +65,9 @@ function MessagesContent() {
           .from('profiles')
           .select('*')
           .in('id', Array.from(contactIds))
-        
+
         setConversations(profiles || [])
-        
+
         if (directMessageId) {
           const target = profiles?.find(p => p.id === directMessageId)
           if (target) setSelectedContact(target)
@@ -65,17 +80,17 @@ function MessagesContent() {
     initMessages()
   }, [directMessageId])
 
-  // 2. Ecoute globale des nouveaux messages en temps réel
+  // 2. Realtime
   useEffect(() => {
     if (!currentUser) return
 
     const channel = supabase
       .channel(`global-chat-${selectedContact?.id ?? 'none'}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'messages' }, 
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const newMsg = payload.new as any
-          
+
           if (selectedContact && (
             (newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedContact.id) ||
             (newMsg.sender_id === selectedContact.id && newMsg.receiver_id === currentUser.id)
@@ -103,7 +118,7 @@ function MessagesContent() {
     return () => { supabase.removeChannel(channel) }
   }, [selectedContact, currentUser])
 
-  // 3. Recharger le chat quand on change de contact
+  // 3. Load chat history
   useEffect(() => {
     if (!selectedContact || !currentUser) return
 
@@ -113,7 +128,7 @@ function MessagesContent() {
         .select('*')
         .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedContact.id}),and(sender_id.eq.${selectedContact.id},receiver_id.eq.${currentUser.id})`)
         .order('created_at', { ascending: true })
-      
+
       setMessages(data || [])
     }
     loadChat()
@@ -161,6 +176,7 @@ function MessagesContent() {
         </div>
       </div>
       <div className="content" style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 140px)' }}>
+        {/* Contacts list */}
         <div className="card" style={{ width: '280px', display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '15px', borderBottom: '1px solid var(--border2)' }}>
             <div style={{ position: 'relative' }}>
@@ -175,14 +191,14 @@ function MessagesContent() {
               </div>
             )}
             {conversations.map(contact => (
-              <div 
-                key={contact.id} 
+              <div
+                key={contact.id}
                 onClick={() => setSelectedContact(contact)}
-                style={{ 
-                  padding: '12px 15px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '12px', 
+                style={{
+                  padding: '12px 15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
                   cursor: 'pointer',
                   borderBottom: '1px solid var(--border2)',
                   background: selectedContact?.id === contact.id ? 'var(--surface2)' : 'transparent',
@@ -205,6 +221,7 @@ function MessagesContent() {
           </div>
         </div>
 
+        {/* Chat area */}
         <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
           {selectedContact ? (
             <>
@@ -217,14 +234,14 @@ function MessagesContent() {
                   <div style={{ fontSize: '10px', color: '#16a34a' }}>● Online</div>
                 </div>
               </div>
-              
+
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8f9fa' }}>
                 {messages.map(m => {
                   const isMine = m.sender_id === currentUser?.id
                   return (
                     <div key={m.id} style={{ alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
-                      <div style={{ 
-                        padding: '10px 14px', 
+                      <div style={{
+                        padding: '10px 14px',
                         borderRadius: isMine ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                         background: isMine ? 'var(--accent)' : 'white',
                         color: isMine ? 'white' : 'var(--text)',
@@ -235,7 +252,7 @@ function MessagesContent() {
                         {m.content}
                       </div>
                       <div style={{ fontSize: '9px', color: 'var(--hint)', marginTop: '4px', textAlign: isMine ? 'right' : 'left' }}>
-                        {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatMessageTime(m.created_at)}
                       </div>
                     </div>
                   )
@@ -244,10 +261,10 @@ function MessagesContent() {
               </div>
 
               <form onSubmit={handleSendMessage} style={{ padding: '15px', borderTop: '1px solid var(--border2)', display: 'flex', gap: '10px' }}>
-                <input 
-                  className="form-input" 
+                <input
+                  className="form-input"
                   style={{ borderRadius: '20px', padding: '10px 18px' }}
-                  placeholder="Type a message..." 
+                  placeholder="Type a message..."
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                 />
