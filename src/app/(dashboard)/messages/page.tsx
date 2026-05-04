@@ -9,16 +9,20 @@ import Notifications from '@/components/Notifications'
 function formatMessageTime(createdAt: string): string {
   const date = new Date(createdAt)
   const now = new Date()
-  // Algeria is UTC+1
-  const toAlgeria = (d: Date) => new Date(d.getTime() + (60 - d.getTimezoneOffset()) * 60000)
-  const msgDate = toAlgeria(date)
-  const today = toAlgeria(now)
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  const time = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  if (msgDate.toDateString() === today.toDateString()) return time
-  if (msgDate.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`
-  return msgDate.toLocaleDateString('fr-DZ', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + time
+
+  const tz = 'Africa/Algiers'
+
+  const toDay = (d: Date) => d.toLocaleDateString('fr-FR', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+  const toTime = (d: Date) => d.toLocaleTimeString('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+
+  const msgDay = toDay(date)
+  const todayDay = toDay(now)
+  const yesterdayDate = new Date(now.getTime() - 86400000)
+  const yesterdayDay = toDay(yesterdayDate)
+
+  if (msgDay === todayDay) return toTime(date)
+  if (msgDay === yesterdayDay) return `Yesterday ${toTime(date)}`
+  return `${msgDay} ${toTime(date)}`
 }
 
 function MessagesContent() {
