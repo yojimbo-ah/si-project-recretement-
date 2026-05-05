@@ -164,8 +164,8 @@ function MessagesContent() {
         <div className="card" style={{ width: '280px', display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '15px', borderBottom: '1px solid var(--border2)' }}>
             <div style={{ position: 'relative' }}>
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--hint)]" />
-              <input className="w-full bg-[var(--surface2)] border-none rounded-lg py-2 pr-3 pl-[30px] text-[11px] outline-none" placeholder="Search conversations..." />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-(--hint)" />
+              <input className="w-full bg-(--surface2) border-none rounded-lg py-2 pr-3 pl-7.5 text-[11px] outline-none" placeholder="Search conversations..." />
             </div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>

@@ -37,6 +37,7 @@ CREATE TABLE public.job_offers (
   location TEXT,
   type TEXT,
   tags TEXT[],
+  recruiter_id UUID REFERENCES auth.users,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -66,6 +67,9 @@ ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Les utilisateurs voient leur propre profil" 
 ON public.profiles FOR SELECT USING (auth.uid() = id);
 
+CREATE POLICY "Les utilisateurs authentifiés voient les profils"
+ON public.profiles FOR SELECT USING (auth.role() = 'authenticated');
+
 CREATE POLICY "Les utilisateurs modifient leur propre profil" 
 ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
@@ -74,16 +78,59 @@ ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Tout le monde peut voir les offres d'emploi" 
 ON public.job_offers FOR SELECT USING (true);
 
+-- Seuls les recruteurs peuvent publier des offres, et uniquement pour eux-memes
+CREATE POLICY "Recruteurs publient leurs offres"
+ON public.job_offers FOR INSERT
+WITH CHECK (
+  auth.uid() = recruiter_id
+  AND EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid() AND p.role = 'recruiter'
+  )
+);
+
+-- Seuls les recruteurs proprietaires peuvent modifier leurs offres
+CREATE POLICY "Recruteurs modifient leurs offres"
+ON public.job_offers FOR UPDATE
+USING (auth.uid() = recruiter_id);
+
 -- Politiques pour 'applications'
 -- MISSION 1 : Un candidat ne peut voir et gérer QUE ses propres candidatures
 CREATE POLICY "Candidats voient leurs propres candidatures" 
 ON public.applications FOR SELECT USING (auth.uid() = user_id);
 
+-- Les recruteurs voient les candidatures liees a leurs offres
+CREATE POLICY "Recruteurs voient les candidatures de leurs offres"
+ON public.applications FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.job_offers j
+    WHERE j.id = applications.job_id AND j.recruiter_id = auth.uid()
+  )
+);
+
 CREATE POLICY "Candidats créent leurs propres candidatures" 
-ON public.applications FOR INSERT WITH CHECK (auth.uid() = user_id);
+ON public.applications FOR INSERT
+WITH CHECK (
+  auth.uid() = user_id
+  AND EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid() AND p.role = 'candidate'
+  )
+);
 
 CREATE POLICY "Candidats mettent à jour leurs propres candidatures" 
 ON public.applications FOR UPDATE USING (auth.uid() = user_id);
+
+-- Les recruteurs peuvent mettre a jour le statut des candidatures liees a leurs offres
+CREATE POLICY "Recruteurs mettent a jour les candidatures de leurs offres"
+ON public.applications FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM public.job_offers j
+    WHERE j.id = applications.job_id AND j.recruiter_id = auth.uid()
+  )
+);
 
 
 -- =========================================================================
@@ -109,6 +156,22 @@ ON storage.objects FOR SELECT
 USING (
   bucket_id = 'cv_bucket' 
   AND auth.uid() = owner
+);
+
+-- Les recruteurs peuvent lire les CV pour les candidatures liees a leurs offres
+CREATE POLICY "Recruteurs voient les CV des candidatures"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'cv_bucket'
+  AND (
+    auth.uid() = owner
+    OR EXISTS (
+      SELECT 1
+      FROM public.applications a
+      JOIN public.job_offers j ON j.id = a.job_id
+      WHERE j.recruiter_id = auth.uid() AND a.cv_url = storage.objects.name
+    )
+  )
 );
 
 CREATE POLICY "Utilisateurs mettent à jour leurs propres CV"

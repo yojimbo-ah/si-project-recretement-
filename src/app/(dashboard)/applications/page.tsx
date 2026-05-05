@@ -7,6 +7,8 @@ export default function ApplicationsPage() {
   const supabase = createClient()
   const [applications, setApplications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState<'candidate' | 'recruiter' | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   // Génère un lien signé temporaire (60s) - seul le propriétaire peut télécharger
   const downloadCV = async (cvUrl: string) => {
@@ -33,17 +35,45 @@ export default function ApplicationsPage() {
     const user = session?.user
     if (!user) return
 
-    const { data } = await supabase
-      .from('applications')
-      .select(`
-        *,
-        job_offers (
-          title,
-          company
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const currentRole = (profile?.role || 'candidate') as 'candidate' | 'recruiter'
+    setRole(currentRole)
+
+    const { data } = currentRole === 'recruiter'
+      ? await supabase
+          .from('applications')
+          .select(`
+            *,
+            job_offers!inner (
+              id,
+              title,
+              company,
+              recruiter_id
+            ),
+            profiles:user_id (
+              first_name,
+              last_name,
+              location
+            )
+          `)
+          .eq('job_offers.recruiter_id', user.id)
+          .order('created_at', { ascending: false })
+      : await supabase
+          .from('applications')
+          .select(`
+            *,
+            job_offers (
+              title,
+              company
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
     
     if (data) setApplications(data)
     setLoading(false)
@@ -56,6 +86,97 @@ export default function ApplicationsPage() {
   }, [])
 
   if (loading) return <div className="p-8">Loading...</div>
+
+  const updateStatus = async (appId: string, status: string) => {
+    setUpdatingId(appId)
+    const { error } = await supabase.from('applications').update({ status }).eq('id', appId)
+    if (error) {
+      alert('Unable to update status: ' + error.message)
+    } else {
+      await loadApplications()
+    }
+    setUpdatingId(null)
+  }
+
+  if (role === 'recruiter') {
+    return (
+      <div className="content">
+        <div className="topbar">
+          <div>
+            <div className="page-title">Incoming applications</div>
+            <div className="page-sub">Review candidates for your job offers</div>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginTop: '16px' }}>
+          <div className="card-title">Applications</div>
+          {applications.length === 0 ? (
+            <div className="p-6 text-center text-(--muted) text-sm">No applications yet.</div>
+          ) : (
+            <table className="app-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border2)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>Candidate</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>Job</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>Applied</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>CV</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px' }}>Update</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map(app => (
+                  <tr key={app.id} style={{ borderBottom: '1px solid var(--border2)' }}>
+                    <td style={{ padding: '10px' }}>
+                      {app.profiles?.first_name || 'Candidate'} {app.profiles?.last_name || ''}
+                    </td>
+                    <td style={{ padding: '10px', color: 'var(--text)' }}>{app.job_offers?.title}</td>
+                    <td style={{ padding: '10px', color: 'var(--muted)' }}>{new Date(app.created_at).toLocaleDateString('fr-DZ', { month: 'short', day: 'numeric' })}</td>
+                    <td style={{ padding: '10px' }}>
+                      {app.cv_url ? (
+                        <button
+                          onClick={() => downloadCV(app.cv_url)}
+                          style={{
+                            color: 'var(--accent)',
+                            fontSize: '11px',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            padding: 0
+                          }}
+                        >
+                          View CV
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: '11px' }}>No CV</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px' }}>{app.status}</td>
+                    <td style={{ padding: '10px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {['in review', 'interview', 'offer', 'rejected'].map(nextStatus => (
+                          <button
+                            key={nextStatus}
+                            disabled={updatingId === app.id}
+                            className="btn-ghost"
+                            style={{ fontSize: '10px', padding: '4px 8px' }}
+                            onClick={() => updateStatus(app.id, nextStatus)}
+                          >
+                            {nextStatus}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // Logique de filtrage par colonne
   const getCol = (status: string) => {

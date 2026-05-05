@@ -36,17 +36,22 @@ function isString(value: unknown): value is string {
 }
 
 function getRecordFromPayload(payload: unknown) {
-  const payloadEnvelope = isRecord(payload) && isRecord(payload.payload)
-    ? payload.payload
-    : undefined
   const payloadRoot = isRecord(payload) ? payload : undefined
+  const payloadEnvelope = payloadRoot && isRecord(payloadRoot.payload)
+    ? payloadRoot.payload
+    : undefined
   const operation =
     (payloadEnvelope && typeof payloadEnvelope.operation === 'string' && payloadEnvelope.operation) ||
+    (payloadRoot && typeof payloadRoot.eventType === 'string' && payloadRoot.eventType) ||
     (payloadRoot && typeof payloadRoot.event === 'string' && payloadRoot.event) ||
     undefined
 
   const recordEnvelope = payloadEnvelope && isRecord(payloadEnvelope.record)
     ? payloadEnvelope.record
+    : payloadRoot && isRecord(payloadRoot.new)
+      ? payloadRoot.new
+      : payloadRoot && isRecord(payloadRoot.record)
+        ? payloadRoot.record
     : undefined
 
   const record = recordEnvelope && isRecord(recordEnvelope.record)
@@ -55,6 +60,10 @@ function getRecordFromPayload(payload: unknown) {
 
   const oldRecordEnvelope = payloadEnvelope && isRecord(payloadEnvelope.old_record)
     ? payloadEnvelope.old_record
+    : payloadRoot && isRecord(payloadRoot.old)
+      ? payloadRoot.old
+      : payloadRoot && isRecord(payloadRoot.old_record)
+        ? payloadRoot.old_record
     : undefined
 
   const oldRecord = oldRecordEnvelope && isRecord(oldRecordEnvelope.record)
@@ -124,6 +133,17 @@ function mergeMessages(
   return sortMessages(Array.from(nextMap.values()))
 }
 
+function isConversationMessage(
+  message: ChatMessage,
+  currentUserId: string,
+  otherUserId: string
+) {
+  return (
+    (message.sender_id === currentUserId && message.receiver_id === otherUserId) ||
+    (message.sender_id === otherUserId && message.receiver_id === currentUserId)
+  )
+}
+
 export function useChatRealtime(params: {
   currentUserId?: string | null
   otherUserId?: string | null
@@ -146,9 +166,13 @@ export function useChatRealtime(params: {
     if (!topic) return
 
     const activeTopic = topic
+    const activeCurrentUserId = currentUserId
+    const activeOtherUserId = otherUserId
     let active = true
 
     async function setup() {
+      if (!activeCurrentUserId || !activeOtherUserId) return
+
       setStatus('connecting')
       setError(undefined)
       setMessages((prev) => sortMessages(prev))
@@ -174,7 +198,7 @@ export function useChatRealtime(params: {
       })
 
       channel
-        .on('broadcast', { event: '*' }, (payload) => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
           if (DEBUG_REALTIME) {
             console.log('[realtime] raw payload', payload)
           }
@@ -188,7 +212,13 @@ export function useChatRealtime(params: {
 
           if (!messageId) return
 
-          setMessages((prev) => mergeMessages(prev, messageRecord, messageId, operation))
+          const relevantMessage = messageRecord ?? toChatMessage(oldRecordObject)
+
+          if (!relevantMessage || !isConversationMessage(relevantMessage, activeCurrentUserId, activeOtherUserId)) {
+            return
+          }
+
+          setMessages((prev) => mergeMessages(prev, relevantMessage, messageId, operation))
         })
         .subscribe((state) => {
           if (!active) return

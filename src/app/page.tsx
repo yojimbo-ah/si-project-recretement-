@@ -10,6 +10,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [accountRole, setAccountRole] = useState<'candidate' | 'recruiter'>('candidate')
   const router = useRouter()
   const supabase = createClient()
 
@@ -38,8 +39,14 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (!error) {
+        const userId = data.user?.id
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .upsert({ id: userId, role: accountRole }, { onConflict: 'id' })
+        }
         router.push('/dashboard')
       } else {
         alert(error.message)
@@ -52,6 +59,7 @@ export default function AuthPage() {
           data: {
             first_name: firstName,
             last_name: lastName,
+            role: accountRole,
           }
         }
       })
@@ -109,6 +117,28 @@ export default function AuthPage() {
                   </div>
                 </div>
               )}
+
+              <div className="input-group" style={{ marginTop: isLogin ? '0' : '6px' }}>
+                <label className="form-label">Account type</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className={`btn-ghost ${accountRole === 'candidate' ? 'active' : ''}`}
+                    onClick={() => setAccountRole('candidate')}
+                    style={{ padding: '8px 10px', fontSize: '12px', border: accountRole === 'candidate' ? '1px solid var(--accent)' : '1px solid var(--border2)' }}
+                  >
+                    Candidate
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn-ghost ${accountRole === 'recruiter' ? 'active' : ''}`}
+                    onClick={() => setAccountRole('recruiter')}
+                    style={{ padding: '8px 10px', fontSize: '12px', border: accountRole === 'recruiter' ? '1px solid var(--accent)' : '1px solid var(--border2)' }}
+                  >
+                    Recruiter
+                  </button>
+                </div>
+              </div>
               
               <div className="input-group">
                 <label className="form-label">Email</label>

@@ -10,6 +10,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter()
   const supabase = createClient()
   const [profile, setProfile] = useState<{first_name: string, last_name: string, role: string} | null>(null)
+  const isRecruiter = profile?.role === 'recruiter'
 
   useEffect(() => {
     async function loadProfile() {
@@ -51,10 +52,15 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     { name: 'Messages', href: '/messages', icon: MessageSquare },
   ]
   
-  const jobItems = [
-    { name: 'Browse jobs', href: '/jobs', icon: Search },
-    { name: 'My applications', href: '/applications', icon: FileText },
-  ]
+  const jobItems = isRecruiter
+    ? [
+        { name: 'My job offers', href: '/jobs', icon: Search },
+        { name: 'Applications', href: '/applications', icon: FileText },
+      ]
+    : [
+        { name: 'Browse jobs', href: '/jobs', icon: Search },
+        { name: 'My applications', href: '/applications', icon: FileText },
+      ]
 
   return (
     <div className="sidebar">
@@ -112,7 +118,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
           <div className="user-info">
             <p>{profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Guest User'}</p>
-            <span>Candidate</span>
+            <span>{isRecruiter ? 'Recruiter' : 'Candidate'}</span>
           </div>
         </div>
       </div>

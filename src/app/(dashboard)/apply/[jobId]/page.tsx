@@ -13,6 +13,7 @@ export default function ApplyPage() {
   const [job, setJob] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [isRecruiter, setIsRecruiter] = useState(false)
   
   const supabase = createClient()
   const router = useRouter()
@@ -28,6 +29,13 @@ export default function ApplyPage() {
 
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setUserProfile(profile)
+      const recruiter = profile?.role === 'recruiter'
+      setIsRecruiter(recruiter)
+      if (recruiter) {
+        setPageLoading(false)
+        router.replace('/jobs')
+        return
+      }
 
       const { data: jobData } = await supabase.from('job_offers').select('*').eq('id', params.jobId).single()
       setJob(jobData)
@@ -98,6 +106,7 @@ export default function ApplyPage() {
   }
 
   if (pageLoading) return <div className="p-8">Loading application...</div>
+  if (isRecruiter) return <div className="p-8">Recruiters cannot apply for jobs.</div>
   if (!job) return <div className="p-8">Job not found.</div>
 
   return (

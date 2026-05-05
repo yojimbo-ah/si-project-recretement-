@@ -15,6 +15,7 @@ export default function Dashboard() {
   })
   const [userName, setUserName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState<'candidate' | 'recruiter'>('candidate')
 
   useEffect(() => {
     async function fetchData() {
@@ -22,13 +23,25 @@ export default function Dashboard() {
       const user = session?.user
       if (!user) return
 
-      const { data: profile } = await supabase.from('profiles').select('first_name').eq('id', user.id).single()
-      if (profile) setUserName(profile.first_name)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, role')
+        .eq('id', user.id)
+        .single()
 
-      const { data: apps } = await supabase
-        .from('applications')
-        .select('status')
-        .eq('user_id', user.id)
+      if (profile?.first_name) setUserName(profile.first_name)
+      const currentRole = (profile?.role || 'candidate') as 'candidate' | 'recruiter'
+      setRole(currentRole)
+
+      const { data: apps } = currentRole === 'recruiter'
+        ? await supabase
+            .from('applications')
+            .select('status, job_offers!inner(recruiter_id)')
+            .eq('job_offers.recruiter_id', user.id)
+        : await supabase
+            .from('applications')
+            .select('status')
+            .eq('user_id', user.id)
 
       if (apps) {
         setStats({
@@ -45,19 +58,26 @@ export default function Dashboard() {
 
   if (loading) return <div className="p-8">Loading...</div>
 
-  const statCards = [
-    { label: 'Applications', value: stats.total, dotColor: '#635bff', changeText: 'Total submitted' },
-    { label: 'In Review', value: stats.inReview, dotColor: '#f59e0b', changeText: 'Active now' },
-    { label: 'Interviews', value: stats.interview, dotColor: '#16a34a', changeText: 'Next steps' },
-    { label: 'Offers', value: stats.offer, dotColor: '#3b82f6', changeText: 'Received' },
-  ]
+  const statCards = role === 'recruiter'
+    ? [
+        { label: 'Applications', value: stats.total, dotColor: '#635bff', changeText: 'Total received' },
+        { label: 'In Review', value: stats.inReview, dotColor: '#f59e0b', changeText: 'Waiting reply' },
+        { label: 'Interviews', value: stats.interview, dotColor: '#16a34a', changeText: 'Scheduled' },
+        { label: 'Offers', value: stats.offer, dotColor: '#3b82f6', changeText: 'Sent' },
+      ]
+    : [
+        { label: 'Applications', value: stats.total, dotColor: '#635bff', changeText: 'Total submitted' },
+        { label: 'In Review', value: stats.inReview, dotColor: '#f59e0b', changeText: 'Active now' },
+        { label: 'Interviews', value: stats.interview, dotColor: '#16a34a', changeText: 'Next steps' },
+        { label: 'Offers', value: stats.offer, dotColor: '#3b82f6', changeText: 'Received' },
+      ]
 
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">Good morning, {userName || 'Talent'}</div>
-          <div className="page-sub">Here's your job search overview for today</div>
+          <div className="page-title">Good morning, {userName || (role === 'recruiter' ? 'Recruiter' : 'Talent')}</div>
+          <div className="page-sub">{role === 'recruiter' ? 'Here is your hiring overview for today' : "Here's your job search overview for today"}</div>
         </div>
       </div>
 
@@ -86,13 +106,15 @@ export default function Dashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: '18px', fontWeight: 600, fontFamily: "'Syne', sans-serif", marginBottom: '10px' }}>
-                  Ready for your next move?
+                  {role === 'recruiter' ? 'Publish your next role' : 'Ready for your next move?'}
                 </div>
                 <p style={{ fontSize: '12px', opacity: 0.8, marginBottom: '20px', maxWidth: '250px' }}>
-                  Explore thousands of jobs tailored to your skills in the Algerian market.
+                  {role === 'recruiter'
+                    ? 'Create job offers and track candidates in one place.'
+                    : 'Explore thousands of jobs tailored to your skills in the Algerian market.'}
                 </p>
                 <Link href="/jobs" className="btn-primary" style={{ background: 'white', color: 'var(--accent)', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                  Explore Jobs <ArrowRight size={14} />
+                  {role === 'recruiter' ? 'Post a Job' : 'Explore Jobs'} <ArrowRight size={14} />
                 </Link>
               </div>
               <TrendingUp size={60} style={{ opacity: 0.1 }} />
@@ -103,12 +125,18 @@ export default function Dashboard() {
             <div className="card-title">Recent Activity</div>
             <div style={{ marginTop: '15px' }}>
               {stats.total === 0 ? (
-                <div className="text-center py-4 text-(--muted) text-xs">No activity yet. Your applications will appear here.</div>
+                <div className="text-center py-4 text-(--muted) text-xs">
+                  {role === 'recruiter' ? 'No applications yet. Publish a job to get started.' : 'No activity yet. Your applications will appear here.'}
+                </div>
               ) : (
                 <div className="flex flex-col gap-3">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'var(--surface2)', borderRadius: '8px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }}></div>
-                    <div style={{ fontSize: '12px' }}>You have <strong>{stats.total}</strong> active applications in progress.</div>
+                    <div style={{ fontSize: '12px' }}>
+                      {role === 'recruiter'
+                        ? <>You have <strong>{stats.total}</strong> applications waiting for review.</>
+                        : <>You have <strong>{stats.total}</strong> active applications in progress.</>}
+                    </div>
                   </div>
                 </div>
               )}

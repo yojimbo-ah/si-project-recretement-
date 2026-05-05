@@ -151,7 +151,7 @@ export default function ProfilePage() {
               {profile.first_name} {profile.last_name}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-              Candidate · {location || 'Not set'}
+              {(profile.role || 'candidate') === 'recruiter' ? 'Recruiter' : 'Candidate'} · {location || 'Not set'}
             </div>
           </div>
         </div>
