@@ -1,70 +1,38 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AuthPage() {
-  const [checkingSession, setCheckingSession] = useState(true)
   const [isLogin, setIsLogin] = useState(true)
+  const [role, setRole] = useState<'candidate' | 'recruiter'>('candidate')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [accountRole, setAccountRole] = useState<'candidate' | 'recruiter'>('candidate')
   const router = useRouter()
   const supabase = createClient()
-
-  useEffect(() => {
-    let active = true
-
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession()
-      if (!active) return
-
-      if (data.session) {
-        router.replace('/dashboard')
-        return
-      }
-
-      setCheckingSession(false)
-    }
-
-    loadSession()
-
-    return () => {
-      active = false
-    }
-  }, [router, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isLogin) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (!error) {
-        const userId = data.user?.id
-        if (userId) {
-          await supabase
-            .from('profiles')
-            .upsert({ id: userId, role: accountRole }, { onConflict: 'id' })
-        }
-        router.push('/dashboard')
-      } else {
-        alert(error.message)
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (!error) router.push('/dashboard')
+      else alert(error.message)
     } else {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             first_name: firstName,
             last_name: lastName,
-            role: accountRole,
+            role,
           }
         }
       })
       if (!error) {
-        alert('Compte créé ! Vérifiez vos emails pour confirmer votre inscription.')
+        alert('Account created! Please check your email.')
         setIsLogin(true)
       } else {
         alert(error.message)
@@ -73,7 +41,6 @@ export default function AuthPage() {
   }
 
   return (
-    checkingSession ? null :
     <div style={{ padding: '1rem 0', display: 'flex', justifyContent: 'center', minHeight: '100vh', alignItems: 'center' }}>
       <div className="auth-screen">
         <div className="auth-left">
@@ -93,8 +60,21 @@ export default function AuthPage() {
               </div>
               <div className="feat-text"><strong>One-click applications</strong>Upload your CV once and apply to any job instantly</div>
             </div>
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+              </div>
+              <div className="feat-text"><strong>Real-time tracking</strong>See your application status update live, from review to offer</div>
+            </div>
+            <div className="feat-row">
+              <div className="feat-icon">
+                <svg viewBox="0 0 16 16"><path d="M8 2l2 4 4.5.7-3.3 3.2.8 4.5L8 12.3 4 14.4l.8-4.5L1.5 6.7 6 6z"/></svg>
+              </div>
+              <div className="feat-text"><strong>Smart matching</strong>Get recommended roles that fit your skills automatically</div>
+            </div>
           </div>
         </div>
+
         <div className="auth-right">
           <div className="auth-form-box">
             <div className="auth-tab-row">
@@ -104,7 +84,38 @@ export default function AuthPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="auth-form-title">{isLogin ? 'Welcome back' : 'Create your account'}</div>
-              
+              <div className="auth-form-sub">{isLogin ? 'Sign in to continue your job search' : 'Start your job search — it\'s completely free'}</div>
+
+              {/* ── Account type selector ── */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '8px' }}>
+                  Account type
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {(['candidate', 'recruiter'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRole(r)}
+                      style={{
+                        padding: '10px 0',
+                        borderRadius: '8px',
+                        border: role === r ? '2px solid #6D28D9' : '2px solid #D1D5DB',
+                        background: role === r ? '#EDE9FE' : '#F9FAFB',
+                        color: role === r ? '#5B21B6' : '#6B7280',
+                        fontWeight: role === r ? 700 : 500,
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {r === 'candidate' ? '🎓 Candidate' : '🏢 Recruiter'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {!isLogin && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   <div>
@@ -118,39 +129,18 @@ export default function AuthPage() {
                 </div>
               )}
 
-              <div className="input-group" style={{ marginTop: isLogin ? '0' : '6px' }}>
-                <label className="form-label">Account type</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className={`btn-ghost ${accountRole === 'candidate' ? 'active' : ''}`}
-                    onClick={() => setAccountRole('candidate')}
-                    style={{ padding: '8px 10px', fontSize: '12px', border: accountRole === 'candidate' ? '1px solid var(--accent)' : '1px solid var(--border2)' }}
-                  >
-                    Candidate
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn-ghost ${accountRole === 'recruiter' ? 'active' : ''}`}
-                    onClick={() => setAccountRole('recruiter')}
-                    style={{ padding: '8px 10px', fontSize: '12px', border: accountRole === 'recruiter' ? '1px solid var(--accent)' : '1px solid var(--border2)' }}
-                  >
-                    Recruiter
-                  </button>
-                </div>
-              </div>
-              
               <div className="input-group">
                 <label className="form-label">Email</label>
                 <input required className="form-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
               </div>
-              
+
               <div className="input-group">
                 <label className="form-label">Password</label>
                 <input required className="form-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                {isLogin && <div className="forgot">Forgot password?</div>}
               </div>
 
-              <button type="submit" className="btn-full btn-red" style={{ marginTop: '12px' }}>
+              <button type="submit" className="btn-full btn-red" style={{ marginTop: '4px' }}>
                 {isLogin ? 'Sign in' : 'Create free account'}
               </button>
             </form>
